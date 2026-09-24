@@ -30,6 +30,14 @@ function handle(events: SimEvent[]) {
       case 'jump':
         play(e.big ? 'bigJump' : 'jump')
         break
+      case 'pop':
+        play('jump', 0.8)
+        game.pushToast({ text: 'Pop!', tone: 'gate' })
+        break
+      case 'cross':
+        play('finish')
+        game.pushToast({ text: 'Finish!', sub: 'land it and stop', tone: 'bank' })
+        break
       case 'land':
         play('land', 0.8)
         puffAtSkier(10, 0.4)
@@ -52,7 +60,6 @@ function handle(events: SimEvent[]) {
         play('gate', 0.6)
         break
       case 'finish': {
-        play('finish')
         silence()
         const { time, style } = runtime.sim
         const bonus = timeBonus(time)
@@ -111,7 +118,7 @@ export function GameLoop({ sun }: { sun: React.RefObject<THREE.DirectionalLight 
         hudTimer.current = 0
         const c = sim.combo
         useGame.setState({
-          hud: { time: sim.time, distance: s.z, speed: s.speed * 3.6, style: sim.style },
+          hud: { time: sim.time, distance: Math.min(s.z, sim.course.length), speed: s.speed * 3.6, style: sim.style },
           combo: c.count > 0 ? { tricks: [...c.tricks], base: c.base, count: c.count } : null,
           air: s.airborne ? airReadout(s.spin, s.flip, s.grabTime, s.airTime, s.peakSpin) : null,
         })

@@ -70,7 +70,7 @@ const CONTROLS: [string, string][] = [
   ['← →', 'turn · spin in air'],
   ['↑', 'brake · backflip in air'],
   ['↓', 'tuck · frontflip in air'],
-  ['Space', 'jump'],
+  ['Space', 'jump · pop at the lip of a kicker'],
   ['Shift', 'grab (hold in air)'],
   ['', 'quick ←/→ tap in air and let go: shifty'],
   ['', 'let go of ←→ / ↑↓ and the rotation finishes itself'],

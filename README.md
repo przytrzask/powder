@@ -20,6 +20,7 @@ pnpm test    # game rules (tricks, crashes, combos)
 | Esc | pause | |
 
 Let go of the arrows mid-air and the rotation finishes itself. Flip + spin = Cork.
+Press Space on a kicker to pop — the closer to the lip, the higher. Kickers come in three sizes.
 A quick ←/→ twist (~90°) that you let swing back is a Shifty.
 Clean tricks build a combo that banks after a couple of seconds of clean riding — crash and it's gone.
 

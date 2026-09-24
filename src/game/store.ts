@@ -1,4 +1,5 @@
 import { create } from 'zustand'
+import { COURSE } from './config'
 
 export type Phase = 'menu' | 'playing' | 'paused' | 'finished'
 
@@ -23,7 +24,8 @@ type State = {
 }
 
 let toastId = 0
-const BEST_KEY = 'powder.best'
+// per course length, so a longer map doesn't compete with old scores
+const BEST_KEY = `powder.best.${COURSE.length}`
 
 export const useGame = create<State>((set) => ({
   phase: 'menu',

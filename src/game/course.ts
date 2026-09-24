@@ -23,6 +23,12 @@ export type Course = {
 }
 
 const LIFT_X = -22
+// small / medium / big kickers: height drives launch speed and so air time
+const RAMP_SIZES = [
+  { w: 4, l: 4, h: 0.8 },
+  { w: 4.5, l: 5, h: 1.3 },
+  { w: 5.5, l: 7, h: 2.2 },
+]
 const LIFT_SPACING = 60
 
 export function generateCourse(seed = COURSE.seed): Course {
@@ -36,13 +42,16 @@ export function generateCourse(seed = COURSE.seed): Course {
   const clearOf = (x: number, z: number, d: number) =>
     obstacles.every((o) => (o.x - x) ** 2 + (o.z - z) ** 2 > (o.r + d) ** 2) &&
     // keep the run-in and the landing zone of every ramp clear
-    ramps.every((r) => Math.abs(r.x - x) > r.w / 2 + d + 3 || z < r.z - 15 || z > r.z + 30)
+    ramps.every((r) => Math.abs(r.x - x) > r.w / 2 + d + 3 || z < r.z - 15 || z > r.z + 20 + r.h * 12)
 
   // Features along the fall line: alternate ramps and gate pairs.
-  for (let z = 60; z < length - 50; z += range(38, 55)) {
+  for (let z = 60; z < length - 60; z += range(38, 55)) {
     const x = range(-corridor + 10, corridor - 10)
-    if (rand() < 0.5) ramps.push({ x, z, w: 4.5, l: 5, h: 1.3 })
-    else gates.push({ x, z, halfWidth: 3.2, color: rand() < 0.5 ? '#d7263d' : '#1b998b' })
+    if (rand() < 0.5) {
+      const size = RAMP_SIZES[Math.floor(rand() * RAMP_SIZES.length)]
+      ramps.push({ x, z, ...size })
+      z += size.h * 8 // bigger kickers need a longer landing
+    } else gates.push({ x, z, halfWidth: 3.2, color: rand() < 0.5 ? '#d7263d' : '#1b998b' })
   }
 
   // Chairlift poles (decorative line on the left, poles are solid).

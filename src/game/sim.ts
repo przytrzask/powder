@@ -6,11 +6,13 @@ export type Input = { left: boolean; right: boolean; up: boolean; down: boolean;
 
 export type SimEvent =
   | { type: 'jump'; big: boolean }
+  | { type: 'pop' }
   | { type: 'land' }
   | { type: 'trick'; name: string; points: number; combo: number; pot: number }
   | { type: 'bank'; points: number }
   | { type: 'crash'; reason: string; lost: number }
   | { type: 'gate' }
+  | { type: 'cross' }
   | { type: 'finish' }
 
 export type Combo = { base: number; count: number; tricks: string[]; bankIn: number }
@@ -38,6 +40,10 @@ export type Skier = {
   /** which way the body spins while sliding in a wipeout */
   tumbleDir: number
   onRamp: boolean
+  /** 0..1 pop strength queued by pressing Space on a ramp, applied at the lip */
+  pop: number
+  /** set right after launching off a ramp; allows a slightly late pop */
+  rampLaunch: boolean
 }
 
 export type Sim = {
@@ -47,6 +53,10 @@ export type Sim = {
   time: number
   style: number
   combo: Combo
+  /** passed the finish line: clock stopped, skier brakes to a halt in the run-out */
+  crossed: boolean
+  /** seconds since crossing */
+  finishWait: number
   finished: boolean
 }
 
@@ -58,11 +68,13 @@ export function createSim(course: Course): Sim {
     nearby: bucketObstacles(course.obstacles),
     skier: {
       x: 0, z: 0, y: 0, vy: 0, heading: 0, speed: 4, airborne: false, airTime: 0,
-      spin: 0, peakSpin: 0, flip: 0, grabTime: 0, grabbing: false, switchStance: false, tuck: false, crashT: 0, recoverT: 0, tumbleDir: 1, onRamp: false,
+      spin: 0, peakSpin: 0, flip: 0, grabTime: 0, grabbing: false, switchStance: false, tuck: false, crashT: 0, recoverT: 0, tumbleDir: 1, onRamp: false, pop: 0, rampLaunch: false,
     },
     time: 0,
     style: 0,
     combo: emptyCombo(),
+    crossed: false,
+    finishWait: 0,
     finished: false,
   }
 }
@@ -103,20 +115,32 @@ function settle(angle: number, target: number, dt: number) {
   return Math.abs(target - angle) <= step ? target : angle + Math.sign(target - angle) * step
 }
 
+function rampUnder(sim: Sim, s: Skier) {
+  return sim.course.ramps.find(
+    (r) => Math.abs(s.x - r.x) < r.w / 2 && s.z > r.z - r.l / 2 - 0.5 && s.z < r.z + r.l / 2 + 0.5,
+  )
+}
+
 function launch(s: Skier, vy: number) {
   s.airborne = true
   s.onRamp = false
   s.vy = vy
   s.airTime = 0
+  s.pop = 0
+  s.rampLaunch = false
   s.spin = s.flip = s.grabTime = s.peakSpin = 0
 }
 
-export function stepSim(sim: Sim, input: Input, dt: number): SimEvent[] {
+const NO_INPUT: Input = { left: false, right: false, up: false, down: false, jump: false, grab: false }
+
+export function stepSim(sim: Sim, rawInput: Input, dt: number): SimEvent[] {
   const events: SimEvent[] = []
   if (sim.finished) return events
   const s = sim.skier
   const prevZ = s.z
-  sim.time += dt
+  // Past the line the controls are off: rotations settle, and the skier brakes to a stop.
+  const input = sim.crossed ? NO_INPUT : rawInput
+  if (!sim.crossed) sim.time += dt
 
   if (s.recoverT > 0) s.recoverT = Math.max(0, s.recoverT - dt)
   if (s.crashT > 0) {
@@ -143,13 +167,25 @@ export function stepSim(sim: Sim, input: Input, dt: number): SimEvent[] {
     a -= PHYS.sideScrub * Math.abs(Math.sin(s.heading)) * (turning ? 1 : 0.35)
     if (input.down) a += PHYS.tuckBoost * fall
     if (input.up) a -= PHYS.brake
+    if (sim.crossed) a = -SCORE.finishBrake
     s.speed = clamp(s.speed + a * dt, 0, PHYS.maxSpeed)
 
-    if (input.jump) {
+    const ramp = s.onRamp ? rampUnder(sim, s) : undefined
+    if (input.jump && ramp) {
+      // pop on the kicker: the later (closer to the lip), the stronger
+      const progress = clamp((s.z - (ramp.z - ramp.l / 2)) / ramp.l, 0, 1)
+      s.pop = Math.max(s.pop, 0.4 + 0.6 * progress)
+    } else if (input.jump) {
       launch(s, PHYS.ollieVy + s.speed * 0.05)
       events.push({ type: 'jump', big: false })
     }
   } else {
+    if (input.jump && s.rampLaunch && s.airTime < PHYS.latePopWindow) {
+      // slightly late pop off the lip still counts, a bit weaker
+      s.vy += PHYS.rampPop * 0.7
+      s.rampLaunch = false
+      events.push({ type: 'pop' })
+    }
     // In the air: arrows rotate the body, travel direction is locked.
     if (input.left) s.spin -= PHYS.spinRate * dt
     if (input.right) s.spin += PHYS.spinRate * dt
@@ -167,17 +203,18 @@ export function stepSim(sim: Sim, input: Input, dt: number): SimEvent[] {
   s.z += Math.cos(s.heading) * s.speed * dt
 
   // Ramps: ride up the wedge, launch off the lip.
-  const ramp = sim.course.ramps.find(
-    (r) => Math.abs(s.x - r.x) < r.w / 2 && s.z > r.z - r.l / 2 - 0.5 && s.z < r.z + r.l / 2 + 0.5,
-  )
+  const ramp = rampUnder(sim, s)
   if (!s.airborne && s.crashT <= 0) {
     if (ramp && s.z <= ramp.z + ramp.l / 2) {
       s.onRamp = true
       s.y = clamp(((s.z - (ramp.z - ramp.l / 2)) / ramp.l) * ramp.h, 0, ramp.h)
     } else if (s.onRamp) {
-      s.onRamp = false
-      launch(s, PHYS.rampVy + s.speed * PHYS.rampSpeedFactor)
+      const pop = s.pop
+      const h = s.y
+      launch(s, PHYS.rampVy * Math.sqrt(h / 1.3) + s.speed * PHYS.rampSpeedFactor + PHYS.rampPop * pop)
+      s.rampLaunch = pop === 0
       events.push({ type: 'jump', big: true })
+      if (pop > 0) events.push({ type: 'pop' })
     } else {
       s.y = 0
     }
@@ -257,15 +294,25 @@ export function stepSim(sim: Sim, input: Input, dt: number): SimEvent[] {
     }
   }
 
-  if (s.z >= sim.course.length) {
-    if (sim.combo.count > 0) {
-      const points = sim.combo.base * sim.combo.count
-      sim.style += points
-      events.push({ type: 'bank', points })
-      sim.combo = emptyCombo()
+  if (!sim.crossed && s.z >= sim.course.length) {
+    sim.crossed = true
+    events.push({ type: 'cross' })
+  }
+
+  // Results once the skier has landed any trick in progress and come to a stop.
+  if (sim.crossed) {
+    sim.finishWait += dt
+    const stopped = !s.airborne && s.crashT <= 0 && s.speed < 1
+    if (stopped || sim.finishWait > SCORE.finishTimeout) {
+      if (sim.combo.count > 0) {
+        const points = sim.combo.base * sim.combo.count
+        sim.style += points
+        events.push({ type: 'bank', points })
+        sim.combo = emptyCombo()
+      }
+      sim.finished = true
+      events.push({ type: 'finish' })
     }
-    sim.finished = true
-    events.push({ type: 'finish' })
   }
 
   return events

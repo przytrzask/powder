@@ -29,8 +29,8 @@ A SkiFree-style downhill game rebuilt in 3D (inspired by https://x.com/almonk/st
 (Grab is Shift, not Cmd: macOS suppresses keyup events while Cmd is held, and Cmd combos hit browser shortcuts.)
 
 ## Rules
-- One fixed-length course (map 1, seeded), start → finish line
-- Ramps launch you high; Space gives a small ollie anywhere
+- One fixed-length course (map 1, seeded, 1400 m), start → finish line. The clock stops at the line; the skier brakes to a stop in the run-out, and any trick still in the air counts before results show
+- Kickers in three sizes (0.8 / 1.3 / 2.2 m) — air time grows with height. Space on a kicker pops (stronger near the lip, small grace window just after); Space elsewhere is a small ollie
 - Tricks: spins (per 180°), flips (per 360°), corks (flip + spin), shifty (~90° twist and back, no spin), grabs (per held time). Must land with skis roughly aligned with travel direction, upright, and not grabbing — otherwise it's a crash
 - Clean landings add tricks to a **combo pot**; each extra trick in the chain raises the multiplier. The pot banks into Style after ~2.5 s of clean riding
 - **Crash** (hit tree/rock/lift pole, or bad landing): lose the unbanked pot, tumble briefly, speed cut heavily → next trick is harder

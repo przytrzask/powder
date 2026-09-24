@@ -120,6 +120,53 @@ describe('stepSim', () => {
     expect(sim.skier.z).toBeGreaterThan(30)
   })
 
+  it('pressing Space on a ramp pops higher, more near the lip', () => {
+    const airFor = (popAt: number | null) => {
+      const sim = createSim(emptyCourse({ ramps: [{ x: 0, z: 30, w: 4.5, l: 5, h: 1.3 }] }))
+      sim.skier.speed = 12
+      let jumped = false
+      let air = 0
+      run(sim, 5, () => {
+        if (sim.skier.airborne) air = Math.max(air, sim.skier.airTime)
+        const p = (sim.skier.z - 27.5) / 5
+        if (popAt !== null && !jumped && sim.skier.onRamp && p >= popAt) return (jumped = true), { jump: true }
+        return {}
+      })
+      return air
+    }
+    const none = airFor(null)
+    const early = airFor(0.1)
+    const late = airFor(0.85)
+    expect(early).toBeGreaterThan(none)
+    expect(late).toBeGreaterThan(early)
+  })
+
+  it('bigger ramps give more air', () => {
+    const airFor = (h: number) => {
+      const sim = createSim(emptyCourse({ ramps: [{ x: 0, z: 30, w: 4.5, l: 5, h }] }))
+      sim.skier.speed = 12
+      let air = 0
+      run(sim, 5, () => ((air = Math.max(air, sim.skier.airborne ? sim.skier.airTime : 0)), {}))
+      return air
+    }
+    expect(airFor(2.2)).toBeGreaterThan(airFor(0.8) + 0.4)
+  })
+
+  it('clock stops at the line; a trick landed past it still counts; results after stopping', () => {
+    const sim = createSim(emptyCourse({ length: 40, ramps: [{ x: 0, z: 38, w: 4.5, l: 5, h: 1.3 }] }))
+    sim.skier.speed = 14
+    const events = run(sim, 10, () => (sim.skier.airborne && sim.skier.airTime < 0.5 ? { right: true } : {}))
+    const cross = events.findIndex((e) => e.type === 'cross')
+    const trick = events.findIndex((e) => e.type === 'trick')
+    const finish = events.findIndex((e) => e.type === 'finish')
+    expect(cross).toBeGreaterThan(-1)
+    expect(trick).toBeGreaterThan(cross)
+    expect(finish).toBeGreaterThan(trick)
+    expect(sim.style).toBeGreaterThan(0)
+    expect(sim.time).toBeLessThan(4)
+    expect(sim.skier.speed).toBeLessThan(1)
+  })
+
   it('awards gate bonus and finishes the course', () => {
     const sim = createSim(emptyCourse({ length: 40, gates: [{ x: 0, z: 20, halfWidth: 3, color: 'red' }] }))
     sim.skier.speed = 12

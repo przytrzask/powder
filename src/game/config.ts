@@ -1,7 +1,7 @@
 // World units are metres. Downhill is +z, x is across the slope.
 export const COURSE = {
   seed: 1,
-  length: 900,
+  length: 1400,
   width: 90,
   // half-width of the skiable corridor; beyond this the forest is dense
   corridor: 34,
@@ -20,7 +20,10 @@ export const PHYS = {
   turnRate: 2.4, // rad/s
   headingReturn: 0, // no auto-straightening
   ollieVy: 7,
-  rampVy: 12,
+  rampVy: 12, // launch speed off a medium (1.3m) ramp; scales with sqrt(ramp height)
+  // extra launch speed for pressing Space on the ramp — more the closer to the lip
+  rampPop: 5,
+  latePopWindow: 0.12, // seconds after leaving the lip a pop still counts
   rampSpeedFactor: 0.12,
   spinRate: Math.PI * 3, // rad/s
   flipRate: Math.PI * 2.8,
@@ -51,6 +54,8 @@ export const SCORE = {
   minGrab: 0.15,
   gate: 50,
   bankDelay: 2.5,
-  timePar: 75, // seconds; each second faster than par is worth timeBonusPerSecond
+  timePar: COURSE.length / 12, // seconds; each second faster than par is worth timeBonusPerSecond
+  finishBrake: 7, // auto-brake in the run-out after the finish line
+  finishTimeout: 6, // results appear at the latest this long after crossing
   timeBonusPerSecond: 60,
 }
