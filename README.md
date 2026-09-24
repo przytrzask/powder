@@ -20,6 +20,7 @@ pnpm test    # game rules (tricks, crashes, combos)
 | Esc | pause | |
 
 Let go of the arrows mid-air and the rotation finishes itself. Flip + spin = Cork.
+A quick ←/→ twist (~90°) that you let swing back is a Shifty.
 Clean tricks build a combo that banks after a couple of seconds of clean riding — crash and it's gone.
 
 See [SPEC.md](SPEC.md) for the full design. Tuning lives in `src/game/config.ts`.

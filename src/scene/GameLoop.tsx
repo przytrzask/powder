@@ -4,7 +4,8 @@ import * as THREE from 'three'
 import { play, silence, updateAmbience } from '../game/audio'
 import { attachInput, readInput } from '../game/input'
 import { runtime } from '../game/runtime'
-import { stepSim, timeBonus, type SimEvent } from '../game/sim'
+import { PHYS } from '../game/config'
+import { assistTarget, stepSim, timeBonus, type SimEvent } from '../game/sim'
 import { judgeLanding } from '../game/tricks'
 import { terrainHeight } from '../game/terrain'
 import { spawnPuff } from './SnowPuffs'
@@ -62,11 +63,12 @@ function handle(events: SimEvent[]) {
   }
 }
 
-function airReadout(spin: number, flip: number, grabTime: number, airTime: number) {
-  const now = judgeLanding(spin, flip, grabTime, airTime)
-  if (now.clean) return now.name
-  // mid-rotation: show where it's heading so players know when to let go
-  const next = judgeLanding(Math.sign(spin) * Math.ceil(Math.abs(spin) / Math.PI) * Math.PI, Math.sign(flip) * Math.ceil(Math.abs(flip) / (Math.PI * 2)) * Math.PI * 2, grabTime, airTime)
+/** What you'd land if you let go of the arrows right now (the assist finishes the rotation). */
+function airReadout(spin: number, flip: number, grabTime: number, airTime: number, peakSpin: number) {
+  const spinTo = assistTarget(spin, Math.PI, PHYS.firstSpinCommit, PHYS.spinCommit)
+  const flipTo = assistTarget(flip, Math.PI * 2, PHYS.flipCommit, PHYS.flipCommit)
+  const shiftyPeak = Math.max(peakSpin, spinTo === 0 ? Math.abs(spin) : 0)
+  const next = judgeLanding(spinTo, flipTo, grabTime, airTime, shiftyPeak)
   return next.clean && next.name ? `${next.name}…` : '…'
 }
 
@@ -111,7 +113,7 @@ export function GameLoop({ sun }: { sun: React.RefObject<THREE.DirectionalLight 
         useGame.setState({
           hud: { time: sim.time, distance: s.z, speed: s.speed * 3.6, style: sim.style },
           combo: c.count > 0 ? { tricks: [...c.tricks], base: c.base, count: c.count } : null,
-          air: s.airborne ? airReadout(s.spin, s.flip, s.grabTime, s.airTime) : null,
+          air: s.airborne ? airReadout(s.spin, s.flip, s.grabTime, s.airTime, s.peakSpin) : null,
         })
       }
     }

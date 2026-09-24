@@ -21,6 +21,11 @@ describe('judgeLanding', () => {
     expect(r).toMatchObject({ clean: true, name: 'Cork 360 Grab', switchStance: false })
   })
 
+  it('adds Shifty to a flip, but not to a spin', () => {
+    expect(judgeLanding(0, Math.PI * 2, 0, 1.2, Math.PI / 2)).toMatchObject({ name: 'Backflip Shifty' })
+    expect(judgeLanding(Math.PI * 2, 0, 0, 1.2, Math.PI * 2)).toMatchObject({ name: '360' })
+  })
+
   it('names multi-flip corks', () => {
     expect(judgeLanding(Math.PI * 6, -Math.PI * 4, 0, 2)).toMatchObject({ clean: true, name: 'Double Cork 1080' })
   })
@@ -43,6 +48,18 @@ describe('stepSim', () => {
     const events = run(sim, 4, () => (sim.skier.airborne && sim.skier.airTime < hold ? { [key]: true } : {}))
     return events.find((e) => e.type === 'trick' || e.type === 'crash')
   }
+
+  it('a quick twist that swings back is a shifty', () => {
+    expect(tapInAir('left', 0.12)).toMatchObject({ type: 'trick', name: 'Shifty' })
+  })
+
+  it('a tiny twist is not a shifty', () => {
+    expect(tapInAir('right', 0.03)).toMatchObject({ type: 'trick', name: 'Big Air' })
+  })
+
+  it('a slightly longer hold commits to a 180', () => {
+    expect(tapInAir('right', 0.22)).toMatchObject({ type: 'trick', name: '180' })
+  })
 
   it('a short tap is enough for a 360 — the assist finishes the rotation', () => {
     expect(tapInAir('right', 0.5)).toMatchObject({ type: 'trick', name: '360' })

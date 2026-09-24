@@ -25,6 +25,8 @@ export type Skier = {
   airborne: boolean
   airTime: number
   spin: number
+  /** largest |spin| reached during this jump — a twist-and-return is a shifty */
+  peakSpin: number
   flip: number
   grabTime: number
   grabbing: boolean
@@ -56,7 +58,7 @@ export function createSim(course: Course): Sim {
     nearby: bucketObstacles(course.obstacles),
     skier: {
       x: 0, z: 0, y: 0, vy: 0, heading: 0, speed: 4, airborne: false, airTime: 0,
-      spin: 0, flip: 0, grabTime: 0, grabbing: false, switchStance: false, tuck: false, crashT: 0, recoverT: 0, tumbleDir: 1, onRamp: false,
+      spin: 0, peakSpin: 0, flip: 0, grabTime: 0, grabbing: false, switchStance: false, tuck: false, crashT: 0, recoverT: 0, tumbleDir: 1, onRamp: false,
     },
     time: 0,
     style: 0,
@@ -86,13 +88,17 @@ function crash(sim: Sim, reason: string, events: SimEvent[], tumbleDir = Math.si
 }
 
 /**
- * Rotation assist with momentum: once a third of the way into the next `period`, keep rotating
- * in the same direction to complete it; otherwise ease back to the last completed one.
+ * Where the rotation assist is taking an angle once the key is released: far enough into the next
+ * `period` and it completes it in the same direction, otherwise it eases back to the last completed one.
  */
-function settle(angle: number, period: number, dt: number) {
+export function assistTarget(angle: number, period: number, firstCommit: number, commit: number) {
   const turns = Math.abs(angle) / period
   const done = Math.floor(turns)
-  const target = Math.sign(angle) * (turns - done > 0.33 ? done + 1 : done) * period
+  const needed = done === 0 ? firstCommit : commit
+  return Math.sign(angle) * (turns - done > needed ? done + 1 : done) * period
+}
+
+function settle(angle: number, target: number, dt: number) {
   const step = PHYS.assistRate * dt
   return Math.abs(target - angle) <= step ? target : angle + Math.sign(target - angle) * step
 }
@@ -102,7 +108,7 @@ function launch(s: Skier, vy: number) {
   s.onRamp = false
   s.vy = vy
   s.airTime = 0
-  s.spin = s.flip = s.grabTime = 0
+  s.spin = s.flip = s.grabTime = s.peakSpin = 0
 }
 
 export function stepSim(sim: Sim, input: Input, dt: number): SimEvent[] {
@@ -147,10 +153,11 @@ export function stepSim(sim: Sim, input: Input, dt: number): SimEvent[] {
     // In the air: arrows rotate the body, travel direction is locked.
     if (input.left) s.spin -= PHYS.spinRate * dt
     if (input.right) s.spin += PHYS.spinRate * dt
-    if (!input.left && !input.right) s.spin = settle(s.spin, Math.PI, dt)
+    if (!input.left && !input.right) s.spin = settle(s.spin, assistTarget(s.spin, Math.PI, PHYS.firstSpinCommit, PHYS.spinCommit), dt)
+    s.peakSpin = Math.max(s.peakSpin, Math.abs(s.spin))
     if (input.up) s.flip += PHYS.flipRate * dt
     if (input.down) s.flip -= PHYS.flipRate * dt
-    if (!input.up && !input.down) s.flip = settle(s.flip, Math.PI * 2, dt)
+    if (!input.up && !input.down) s.flip = settle(s.flip, assistTarget(s.flip, Math.PI * 2, PHYS.flipCommit, PHYS.flipCommit), dt)
     s.grabbing = input.grab
     if (input.grab) s.grabTime += dt
     s.speed = Math.max(0, s.speed - PHYS.drag * s.speed * s.speed * dt)
@@ -183,7 +190,7 @@ export function stepSim(sim: Sim, input: Input, dt: number): SimEvent[] {
     if (s.y <= 0) {
       s.y = 0
       s.airborne = false
-      const result = judgeLanding(s.spin, s.flip, s.grabTime, s.airTime)
+      const result = judgeLanding(s.spin, s.flip, s.grabTime, s.airTime, s.peakSpin)
       if (!result.clean) {
         crash(sim, result.reason, events)
       } else {

@@ -31,7 +31,7 @@ A SkiFree-style downhill game rebuilt in 3D (inspired by https://x.com/almonk/st
 ## Rules
 - One fixed-length course (map 1, seeded), start → finish line
 - Ramps launch you high; Space gives a small ollie anywhere
-- Tricks: spins (per 180°), flips (per 360°), grabs (per held time). Must land with skis roughly aligned with travel direction, upright, and not grabbing — otherwise it's a crash
+- Tricks: spins (per 180°), flips (per 360°), corks (flip + spin), shifty (~90° twist and back, no spin), grabs (per held time). Must land with skis roughly aligned with travel direction, upright, and not grabbing — otherwise it's a crash
 - Clean landings add tricks to a **combo pot**; each extra trick in the chain raises the multiplier. The pot banks into Style after ~2.5 s of clean riding
 - **Crash** (hit tree/rock/lift pole, or bad landing): lose the unbanked pot, tumble briefly, speed cut heavily → next trick is harder
 - Passing between gate flags: small style bonus

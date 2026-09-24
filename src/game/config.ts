@@ -26,6 +26,12 @@ export const PHYS = {
   flipRate: Math.PI * 2.8,
   // when no rotation key is held, the body eases toward the nearest landable angle
   assistRate: Math.PI * 2.2,
+  // fraction of the next rotation after which the assist completes it instead of easing back.
+  // The first half-spin needs more commitment so a ~90° twist swings back as a shifty.
+  firstSpinCommit: 0.6,
+  spinCommit: 0.33,
+  flipCommit: 0.33,
+  shiftyMin: (55 * Math.PI) / 180,
   landSpinTolerance: (60 * Math.PI) / 180,
   landFlipTolerance: (75 * Math.PI) / 180,
   crashDuration: 1.6,
@@ -40,6 +46,7 @@ export const SCORE = {
   per180: 100,
   perFlip: 400,
   corkBonus: 1.3,
+  shifty: 150,
   grabPerSecond: 250,
   minGrab: 0.15,
   gate: 50,

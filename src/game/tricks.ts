@@ -12,7 +12,7 @@ const residual = (angle: number, period: number) => {
 const FLIP_WORDS = ['', '', 'Double ', 'Triple ', 'Quad ']
 
 /** Judge a landing from the rotation accumulated in the air. */
-export function judgeLanding(spin: number, flip: number, grabTime: number, airTime: number): Landing {
+export function judgeLanding(spin: number, flip: number, grabTime: number, airTime: number, peakSpin = 0): Landing {
   if (residual(spin, Math.PI) > PHYS.landSpinTolerance) return { clean: false, reason: 'Sideways landing' }
   if (residual(flip, Math.PI * 2) > PHYS.landFlipTolerance) return { clean: false, reason: 'Over-rotated' }
 
@@ -33,6 +33,11 @@ export function judgeLanding(spin: number, flip: number, grabTime: number, airTi
   } else if (halfSpins > 0) {
     parts.push(`${halfSpins * 180}`)
     points += spinPoints
+  }
+  if (halfSpins === 0 && peakSpin >= PHYS.shiftyMin) {
+    // twisted ~90° and came back to straight
+    parts.push('Shifty')
+    points += SCORE.shifty
   }
   if (grabTime >= SCORE.minGrab) {
     parts.push('Grab')

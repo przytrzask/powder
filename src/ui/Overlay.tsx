@@ -72,6 +72,7 @@ const CONTROLS: [string, string][] = [
   ['↓', 'tuck · frontflip in air'],
   ['Space', 'jump'],
   ['Shift', 'grab (hold in air)'],
+  ['', 'quick ←/→ tap in air and let go: shifty'],
   ['', 'let go of ←→ / ↑↓ and the rotation finishes itself'],
   ['Esc', 'pause'],
 ]
