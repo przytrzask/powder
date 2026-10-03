@@ -2,7 +2,17 @@ import { COURSE, PHYS, SCORE } from './config'
 import { bucketObstacles, type Course } from './course'
 import { judgeLanding } from './tricks'
 
-export type Input = { left: boolean; right: boolean; up: boolean; down: boolean; jump: boolean; grab: boolean }
+export type Input = {
+  left: boolean
+  right: boolean
+  up: boolean
+  down: boolean
+  /** one-shot: true for a single step on keydown, for ollies and the late-pop forgiveness window */
+  jump: boolean
+  /** live for as long as Space is down: loads a ramp pop while held, fires it on release */
+  jumpHeld: boolean
+  grab: boolean
+}
 
 export type SimEvent =
   | { type: 'jump'; big: boolean }
@@ -40,7 +50,7 @@ export type Skier = {
   /** which way the body spins while sliding in a wipeout */
   tumbleDir: number
   onRamp: boolean
-  /** 0..1 pop strength queued by pressing Space on a ramp, applied at the lip */
+  /** 0..1 pop loaded by holding Space on the snow (knees bend); fired on release, or at the lip */
   pop: number
   /** set right after launching off a ramp; allows a slightly late pop */
   rampLaunch: boolean
@@ -97,6 +107,7 @@ function crash(sim: Sim, reason: string, events: SimEvent[], tumbleDir = Math.si
   s.spin = s.flip = s.grabTime = 0
   s.grabbing = false
   s.switchStance = false
+  s.pop = 0
 }
 
 /**
@@ -131,7 +142,19 @@ function launch(s: Skier, vy: number) {
   s.spin = s.flip = s.grabTime = s.peakSpin = 0
 }
 
-const NO_INPUT: Input = { left: false, right: false, up: false, down: false, jump: false, grab: false }
+/**
+ * Off the kicker: at the natural end of the ramp (h = where the lip left you), or popped mid-ramp
+ * on release (h = the kicker's full height, so letting go early never gives less air than riding off).
+ */
+function launchOffRamp(s: Skier, events: SimEvent[], h = s.y) {
+  const pop = s.pop
+  launch(s, PHYS.rampVy * Math.sqrt(h / 1.3) + s.speed * PHYS.rampSpeedFactor + PHYS.rampPop * pop)
+  s.rampLaunch = pop === 0
+  events.push({ type: 'jump', big: true })
+  if (pop > 0) events.push({ type: 'pop' })
+}
+
+const NO_INPUT: Input = { left: false, right: false, up: false, down: false, jump: false, jumpHeld: false, grab: false }
 
 export function stepSim(sim: Sim, rawInput: Input, dt: number): SimEvent[] {
   const events: SimEvent[] = []
@@ -170,14 +193,19 @@ export function stepSim(sim: Sim, rawInput: Input, dt: number): SimEvent[] {
     if (sim.crossed) a = -SCORE.finishBrake
     s.speed = clamp(s.speed + a * dt, 0, PHYS.maxSpeed)
 
+    // Space: hold to bend the knees and load the pop, release to fire it.
     const ramp = s.onRamp ? rampUnder(sim, s) : undefined
-    if (input.jump && ramp) {
-      // pop on the kicker: the later (closer to the lip), the stronger
-      const progress = clamp((s.z - (ramp.z - ramp.l / 2)) / ramp.l, 0, 1)
-      s.pop = Math.max(s.pop, 0.4 + 0.6 * progress)
-    } else if (input.jump) {
-      launch(s, PHYS.ollieVy + s.speed * 0.05)
-      events.push({ type: 'jump', big: false })
+    if (input.jumpHeld) {
+      s.pop = clamp(s.pop + PHYS.popChargeRate * dt, 0, 1)
+    } else if (s.pop > 0 || input.jump) {
+      // released (or a tap too quick to see held): pop with whatever was loaded
+      if (ramp) {
+        launchOffRamp(s, events, ramp.h)
+      } else {
+        const pop = s.pop
+        launch(s, PHYS.ollieVy + s.speed * 0.05 + PHYS.olliePop * pop)
+        events.push({ type: 'jump', big: false })
+      }
     }
   } else {
     if (input.jump && s.rampLaunch && s.airTime < PHYS.latePopWindow) {
@@ -209,12 +237,8 @@ export function stepSim(sim: Sim, rawInput: Input, dt: number): SimEvent[] {
       s.onRamp = true
       s.y = clamp(((s.z - (ramp.z - ramp.l / 2)) / ramp.l) * ramp.h, 0, ramp.h)
     } else if (s.onRamp) {
-      const pop = s.pop
-      const h = s.y
-      launch(s, PHYS.rampVy * Math.sqrt(h / 1.3) + s.speed * PHYS.rampSpeedFactor + PHYS.rampPop * pop)
-      s.rampLaunch = pop === 0
-      events.push({ type: 'jump', big: true })
-      if (pop > 0) events.push({ type: 'pop' })
+      // never released (or never pressed): launch anyway at the natural end of the ramp
+      launchOffRamp(s, events)
     } else {
       s.y = 0
     }

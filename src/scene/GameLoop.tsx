@@ -8,12 +8,11 @@ import { PHYS } from '../game/config'
 import { assistTarget, stepSim, timeBonus, type SimEvent } from '../game/sim'
 import { judgeLanding } from '../game/tricks'
 import { terrainHeight } from '../game/terrain'
+import { createRig, fogFor, updateRig } from './cameraRig'
 import { spawnPuff } from './SnowPuffs'
 import { useGame } from '../game/store'
 
 const SUBSTEPS = 2
-const CAM_OFFSET = new THREE.Vector3(0, 58, 24)
-const LOOK_AHEAD = 7
 const SUN_OFFSET = new THREE.Vector3(40, 30, -26)
 
 let shake = 0
@@ -29,6 +28,7 @@ function handle(events: SimEvent[]) {
     switch (e.type) {
       case 'jump':
         play(e.big ? 'bigJump' : 'jump')
+        runtime.takeoff = 1 // loaded knees spring straight on takeoff
         break
       case 'pop':
         play('jump', 0.8)
@@ -40,6 +40,7 @@ function handle(events: SimEvent[]) {
         break
       case 'land':
         play('land', 0.8)
+        runtime.landing = 1
         puffAtSkier(10, 0.4)
         break
       case 'trick':
@@ -80,9 +81,10 @@ function airReadout(spin: number, flip: number, grabTime: number, airTime: numbe
 }
 
 export function GameLoop({ sun }: { sun: React.RefObject<THREE.DirectionalLight | null> }) {
-  const camera = useThree((s) => s.camera)
+  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
+  const scene = useThree((s) => s.scene)
   const hudTimer = useRef(0)
-  const camTarget = useRef(new THREE.Vector3())
+  const rig = useRef(createRig(useGame.getState().camera))
 
   useEffect(() => attachInput(), [])
 
@@ -94,19 +96,26 @@ export function GameLoop({ sun }: { sun: React.RefObject<THREE.DirectionalLight 
         setPhase('paused')
         silence()
       } else if (e.code === 'Escape' && phase === 'paused') setPhase('playing')
+      else if (e.code === 'KeyC' && !e.repeat) useGame.getState().cycleCamera()
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [])
 
   useFrame((_, delta) => {
-    const phase = useGame.getState().phase
+    const { phase, camera: mode } = useGame.getState()
     const sim = runtime.sim
     const s = sim.skier
 
     if (phase === 'playing') {
       const dt = Math.min(delta, 1 / 20) / SUBSTEPS
       const input = readInput()
+      if (mode === 'chase') {
+        // looking downhill mirrors the screen: keep ← meaning "towards screen left"
+        const { left, right } = input
+        input.left = right
+        input.right = left
+      }
       for (let i = 0; i < SUBSTEPS; i++) {
         handle(stepSim(sim, i === 0 ? input : { ...input, jump: false }, dt))
         if (sim.finished) break
@@ -125,11 +134,8 @@ export function GameLoop({ sun }: { sun: React.RefObject<THREE.DirectionalLight 
       }
     }
 
-    // Camera follows smoothly from above, looking a bit downhill of the skier.
-    const k = 1 - Math.exp(-delta * 6)
-    camTarget.current.lerp(new THREE.Vector3(s.x * 0.85, 0, s.z + LOOK_AHEAD), phase === 'menu' ? 1 : k)
-    camera.position.copy(camTarget.current).add(CAM_OFFSET)
-    camera.lookAt(camTarget.current)
+    const focus = updateRig(rig.current, camera, s, mode, delta, phase === 'menu')
+    if (scene.fog instanceof THREE.Fog) [scene.fog.near, scene.fog.far] = fogFor(rig.current.blend)
     if (shake > 0.01) {
       camera.position.x += (Math.random() - 0.5) * shake
       camera.position.z += (Math.random() - 0.5) * shake
@@ -138,8 +144,8 @@ export function GameLoop({ sun }: { sun: React.RefObject<THREE.DirectionalLight 
 
     const light = sun.current
     if (light) {
-      light.position.copy(camTarget.current).add(SUN_OFFSET)
-      light.target.position.copy(camTarget.current)
+      light.position.copy(focus).add(SUN_OFFSET)
+      light.target.position.copy(focus)
       light.target.updateMatrixWorld()
     }
   }, -1)

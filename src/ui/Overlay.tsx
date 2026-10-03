@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { startRun } from '../game/runtime'
-import { useGame } from '../game/store'
+import { CAMERA_MODES, CHARACTERS, type Option, useGame } from '../game/store'
 import './overlay.css'
 
 const fmtTime = (t: number) => {
@@ -19,8 +19,47 @@ function Hud() {
       <Row label="Distance" value={Math.floor(hud.distance)} unit="m" />
       <Row label="Speed" value={Math.round(hud.speed)} unit="km/h" />
       <Row label="Style" value={hud.style} unit="pts" />
+      <CameraHint />
     </div>
   )
+}
+
+function CameraHint() {
+  const camera = useGame((s) => s.camera)
+  return (
+    <div className="camera-hint">
+      <span className="label">Camera</span>
+      <span>{CAMERA_MODES.find((m) => m.id === camera)?.label}</span>
+      <kbd>C</kbd>
+    </div>
+  )
+}
+
+function Picker<T extends string>({ label, options, value, onChange }: { label: string; options: Option<T>[]; value: T; onChange: (id: T) => void }) {
+  return (
+    <div className="picker">
+      <span className="label">{label}</span>
+      <div className="segmented">
+        {options.map((o) => (
+          <button key={o.id} className={o.id === value ? 'active' : ''} onClick={() => onChange(o.id)}>
+            {o.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function CameraPicker() {
+  const camera = useGame((s) => s.camera)
+  const setCamera = useGame((s) => s.setCamera)
+  return <Picker label="Camera" options={CAMERA_MODES} value={camera} onChange={setCamera} />
+}
+
+function CharacterPicker() {
+  const character = useGame((s) => s.character)
+  const setCharacter = useGame((s) => s.setCharacter)
+  return <Picker label="Skier" options={CHARACTERS} value={character} onChange={setCharacter} />
 }
 
 function Row({ label, value, unit }: { label: string; value: number; unit: string }) {
@@ -74,6 +113,7 @@ const CONTROLS: [string, string][] = [
   ['Shift', 'grab (hold in air)'],
   ['', 'quick ←/→ tap in air and let go: shifty'],
   ['', 'let go of ←→ / ↑↓ and the rotation finishes itself'],
+  ['C', 'switch camera'],
   ['Esc', 'pause'],
 ]
 
@@ -85,9 +125,11 @@ function Menu() {
         <p className="tag">One mountain. One run. Land it clean.</p>
         <button onClick={startRun}>New game</button>
         <div className="hint">or press Enter</div>
+        <CharacterPicker />
+        <CameraPicker />
         <div className="controls">
           {CONTROLS.map(([k, v]) => (
-            <div key={k}>
+            <div key={v}>
               {k ? <kbd>{k}</kbd> : <span />}
               <span>{v}</span>
             </div>
@@ -107,6 +149,7 @@ function Paused() {
         <button className="secondary" onClick={startRun}>
           Restart
         </button>
+        <CameraPicker />
       </div>
     </div>
   )

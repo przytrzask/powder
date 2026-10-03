@@ -30,6 +30,8 @@ const RAMP_SIZES = [
   { w: 5.5, l: 7, h: 2.2 },
 ]
 const LIFT_SPACING = 60
+// length of the flagged approach in front of each kicker
+export const RAMP_RUN_IN = 15
 
 export function generateCourse(seed = COURSE.seed): Course {
   const rand = mulberry32(seed)
@@ -41,8 +43,8 @@ export function generateCourse(seed = COURSE.seed): Course {
 
   const clearOf = (x: number, z: number, d: number) =>
     obstacles.every((o) => (o.x - x) ** 2 + (o.z - z) ** 2 > (o.r + d) ** 2) &&
-    // keep the run-in and the landing zone of every ramp clear
-    ramps.every((r) => Math.abs(r.x - x) > r.w / 2 + d + 3 || z < r.z - 15 || z > r.z + 20 + r.h * 12)
+    // keep the run-in (with its marker flags) and the landing zone of every ramp clear
+    ramps.every((r) => Math.abs(r.x - x) > r.w / 2 + d + 3 || z < r.z - r.l / 2 - RAMP_RUN_IN - 3 || z > r.z + 20 + r.h * 12)
 
   // Features along the fall line: alternate ramps and gate pairs.
   for (let z = 60; z < length - 60; z += range(38, 55)) {

@@ -19,10 +19,12 @@ export const PHYS = {
   maxHeading: Math.PI * 0.48,
   turnRate: 2.4, // rad/s
   headingReturn: 0, // no auto-straightening
-  ollieVy: 7,
+  ollieVy: 7, // a quick tap on flat snow
+  olliePop: 4, // extra for a fully loaded ollie (Space held, then released)
   rampVy: 12, // launch speed off a medium (1.3m) ramp; scales with sqrt(ramp height)
-  // extra launch speed for pressing Space on the ramp — more the closer to the lip
+  // extra launch speed from a pop: hold Space on the ramp to load it, release to fire it
   rampPop: 5,
+  popChargeRate: 2.4, // 1/s; ~0.4s of holding maxes the pop out
   latePopWindow: 0.12, // seconds after leaving the lip a pop still counts
   rampSpeedFactor: 0.12,
   spinRate: Math.PI * 3, // rad/s
@@ -59,3 +61,11 @@ export const SCORE = {
   finishTimeout: 6, // results appear at the latest this long after crossing
   timeBonusPerSecond: 60,
 }
+
+export const CAMERA = {
+  // classic: near top-down, skier in the upper third, downhill = screen bottom
+  classic: { offset: [0, 58, 24], lookAhead: 7, fov: 38, fog: [150, 400] },
+  // chase: third person behind the skier, turns with the heading (not with spins/flips)
+  chase: { back: 8, up: 3.6, lookAhead: 9, airLift: 0.85, fov: 62, fog: [45, 170], yawRate: 5 },
+  blendRate: 2.5, // switching between modes, 1/s
+} as const

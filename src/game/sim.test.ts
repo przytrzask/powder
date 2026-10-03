@@ -4,7 +4,7 @@ import type { Course } from './course'
 import { createSim, stepSim, type Input, type SimEvent } from './sim'
 import { judgeLanding } from './tricks'
 
-const idle: Input = { left: false, right: false, up: false, down: false, jump: false, grab: false }
+const idle: Input = { left: false, right: false, up: false, down: false, jump: false, jumpHeld: false, grab: false }
 const DT = 1 / 120
 
 const emptyCourse = (over: Partial<Course> = {}): Course => ({ obstacles: [], ramps: [], gates: [], liftX: -100, length: 5000, ...over })
@@ -120,25 +120,64 @@ describe('stepSim', () => {
     expect(sim.skier.z).toBeGreaterThan(30)
   })
 
-  it('pressing Space on a ramp pops higher, more near the lip', () => {
-    const airFor = (popAt: number | null) => {
+  it('holding Space on a ramp loads a pop that fires on release, longer holds popping higher', () => {
+    // press as the skis reach the kicker, let go at `releaseAt` of the way up
+    const airFor = (releaseAt: number | null) => {
       const sim = createSim(emptyCourse({ ramps: [{ x: 0, z: 30, w: 4.5, l: 5, h: 1.3 }] }))
       sim.skier.speed = 12
-      let jumped = false
       let air = 0
       run(sim, 5, () => {
         if (sim.skier.airborne) air = Math.max(air, sim.skier.airTime)
         const p = (sim.skier.z - 27.5) / 5
-        if (popAt !== null && !jumped && sim.skier.onRamp && p >= popAt) return (jumped = true), { jump: true }
-        return {}
+        return { jumpHeld: releaseAt !== null && !sim.skier.airborne && sim.skier.onRamp && p < releaseAt }
       })
       return air
     }
     const none = airFor(null)
-    const early = airFor(0.1)
+    const early = airFor(0.15)
     const late = airFor(0.85)
     expect(early).toBeGreaterThan(none)
     expect(late).toBeGreaterThan(early)
+  })
+
+  it('releasing the pop mid-ramp launches immediately instead of waiting for the natural lip', () => {
+    const sim = createSim(emptyCourse({ ramps: [{ x: 0, z: 30, w: 4.5, l: 5, h: 1.3 }] }))
+    sim.skier.speed = 12
+    let launchedAt = -1
+    const events = run(sim, 5, () => {
+      const p = (sim.skier.z - 27.5) / 5
+      if (sim.skier.airborne && launchedAt < 0) launchedAt = p
+      return { jumpHeld: !sim.skier.airborne && sim.skier.onRamp && p < 0.4 }
+    })
+    expect(events.find((e) => e.type === 'jump')).toEqual({ type: 'jump', big: true })
+    expect(events.some((e) => e.type === 'pop')).toBe(true)
+    expect(launchedAt).toBeLessThan(0.6)
+  })
+
+  it('on flat snow, Space loads while held and a longer hold ollies higher on release', () => {
+    const airFor = (hold: number) => {
+      const sim = createSim(emptyCourse())
+      sim.skier.speed = 10
+      let air = 0
+      const events = run(sim, 3, (t) => {
+        if (sim.skier.airborne) air = Math.max(air, sim.skier.airTime)
+        return { jumpHeld: t < hold }
+      })
+      return { air, jumped: events.filter((e) => e.type === 'jump').length }
+    }
+    const tap = airFor(0.02)
+    const loaded = airFor(0.5)
+    expect(tap.jumped).toBe(1)
+    expect(loaded.jumped).toBe(1)
+    expect(loaded.air).toBeGreaterThan(tap.air)
+  })
+
+  it('holding Space does not jump until it is released', () => {
+    const sim = createSim(emptyCourse())
+    sim.skier.speed = 10
+    const events = run(sim, 1, () => ({ jumpHeld: true }))
+    expect(events.some((e) => e.type === 'jump')).toBe(false)
+    expect(sim.skier.pop).toBe(1)
   })
 
   it('bigger ramps give more air', () => {

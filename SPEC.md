@@ -5,13 +5,16 @@ A SkiFree-style downhill game rebuilt in 3D (inspired by https://x.com/almonk/st
 ## Tech
 - Vite + React + TypeScript
 - three.js via React Three Fiber (+ drei), zustand for UI state
-- All art is procedural low-poly geometry built in code (no model files)
+- All art is procedural low-poly geometry built in code, except the skiers: low-poly models built by Blender scripts (`art/skier*.py` → `public/models/*.glb`, shared rig in `art/lowpoly.py`), one mesh per animated part, flat vertex colours
 - Audio: short samples synthesized at startup with Web Audio (swappable for real .wav files later)
 
 ## Look
-- Near top-down camera with slight tilt, narrow FOV; skier in upper third of screen, downhill = screen bottom
+- Camera modes (C / title & pause screens, remembered in localStorage):
+  - Classic: near top-down with slight tilt, narrow FOV; skier in upper third of screen, downhill = screen bottom
+  - Chase: third person behind the skier, follows the heading (not spins/flips), fog hides the map edge; ←/→ stay screen-relative
 - White/blue-shadowed snow with mogul bumps, low sun → long soft shadows
 - Low-poly pines, snowy boulders, slalom gate flags, rainbow-striped jump ramps, decorative chairlift
+- Each kicker has a flagged run-in: pairs of pennants that narrow toward the lip and point downhill; colour = size (green small, blue medium, black big)
 - Carved ski tracks left behind the skier
 - HUD: dark glass card top-right — YOUR RUN timer, distance (m), speed (km/h), style (pts)
 
@@ -24,6 +27,7 @@ A SkiFree-style downhill game rebuilt in 3D (inspired by https://x.com/almonk/st
 | Space | jump | — |
 | Shift | — | grab (hold) |
 | Enter | start / restart | |
+| C | switch camera | |
 | Esc | pause | |
 
 (Grab is Shift, not Cmd: macOS suppresses keyup events while Cmd is held, and Cmd combos hit browser shortcuts.)
@@ -38,7 +42,7 @@ A SkiFree-style downhill game rebuilt in 3D (inspired by https://x.com/almonk/st
 - Finish: final score = style + time bonus (faster = more)
 
 ## Screens
-- Title: POWDER, New game button, controls legend
+- Title: POWDER, New game button, skier picker (one per model in `public/models`, remembered in localStorage), camera picker, controls legend
 - In run: HUD, trick/combo popup, pause overlay
 - Results: time, style, time bonus, total, best (localStorage), New game
 

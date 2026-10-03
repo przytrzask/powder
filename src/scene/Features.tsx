@@ -1,7 +1,7 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
 import { COURSE } from '../game/config'
-import type { Gate, Ramp } from '../game/course'
+import { RAMP_RUN_IN, type Gate, type Ramp } from '../game/course'
 import { course } from '../game/runtime'
 import { terrainHeight } from '../game/terrain'
 
@@ -30,6 +30,45 @@ function RampMesh({ ramp }: { ramp: Ramp }) {
       ))}
     </group>
   )
+}
+
+// Run-in markers: flag pairs that narrow toward the kicker, pennants streaming downhill.
+// Colour tells the size, like piste difficulty: green small, blue medium, black big.
+const RUN_IN_PAIRS = 4
+const rampColor = (h: number) => (h < 1 ? '#3fae4f' : h < 2 ? '#2f6fdb' : '#23262d')
+
+const pennant = (() => {
+  const g = new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(0, 0.8), new THREE.Vector2(1.5, 0.4)]))
+  g.rotateY(-Math.PI / 2) // tip points downhill (+z)
+  return g
+})()
+
+function RunInFlag({ x, z, side, color }: { x: number; z: number; side: number; color: string }) {
+  return (
+    <group position={[x, terrainHeight(x, z), z]}>
+      <mesh position={[0, 1.1, 0]} castShadow>
+        <cylinderGeometry args={[0.05, 0.05, 2.2, 5]} />
+        <meshStandardMaterial color="#333" />
+      </mesh>
+      {/* rolled outward so the arrow shape reads from the top-down camera */}
+      <mesh geometry={pennant} position={[0, 1.4, 0]} rotation={[0, 0, -side * 1.1]} castShadow>
+        <meshStandardMaterial color={color} side={THREE.DoubleSide} />
+      </mesh>
+    </group>
+  )
+}
+
+function RunInFlags({ ramp }: { ramp: Ramp }) {
+  const color = rampColor(ramp.h)
+  const start = ramp.z - ramp.l / 2
+  const flags = []
+  for (let i = 0; i < RUN_IN_PAIRS; i++) {
+    const t = i / (RUN_IN_PAIRS - 1) // 0 = nearest the kicker
+    const z = start - 2 - t * (RAMP_RUN_IN - 2)
+    const half = ramp.w / 2 + 0.4 + t * 3
+    for (const side of [-1, 1]) flags.push(<RunInFlag key={`${i}:${side}`} x={ramp.x + side * half} z={z} side={side} color={color} />)
+  }
+  return <>{flags}</>
 }
 
 function Flag({ x, z, color }: { x: number; z: number; color: string }) {
@@ -148,6 +187,9 @@ export function Features() {
     <>
       {course.ramps.map((r) => (
         <RampMesh key={`${r.x}:${r.z}`} ramp={r} />
+      ))}
+      {course.ramps.map((r) => (
+        <RunInFlags key={`run-in:${r.x}:${r.z}`} ramp={r} />
       ))}
       {course.gates.map((g) => (
         <GateMesh key={`${g.x}:${g.z}`} gate={g} />

@@ -23,7 +23,8 @@ export function attachInput() {
   }
 }
 
-/** Snapshot of the controls; the jump press is consumed once read. */
+/** Snapshot of the controls; the jump tap is consumed once read (`jumpHeld` stays live so a ramp
+ * pop can be loaded while Space is held and fired the instant it's released). */
 export function readInput(): Input {
   const input = {
     left: held.has('ArrowLeft'),
@@ -31,6 +32,7 @@ export function readInput(): Input {
     up: held.has('ArrowUp'),
     down: held.has('ArrowDown'),
     jump: jumpQueued,
+    jumpHeld: held.has('Space'),
     grab: held.has('ShiftLeft') || held.has('ShiftRight'),
   }
   jumpQueued = false

@@ -1,5 +1,5 @@
 import { Canvas } from '@react-three/fiber'
-import { useRef } from 'react'
+import { Suspense, useRef } from 'react'
 import * as THREE from 'three'
 import { Features } from './Features'
 import { GameLoop } from './GameLoop'
@@ -14,6 +14,8 @@ function Scene() {
   return (
     <>
       <color attach="background" args={['#e9eff7']} />
+      {/* distances are driven per camera mode in GameLoop */}
+      <fog attach="fog" args={['#e9eff7', 150, 400]} />
       <hemisphereLight args={['#f2f6ff', '#6f8cc4', 1.5]} />
       <directionalLight
         ref={sun}
@@ -35,7 +37,9 @@ function Scene() {
       <Obstacles />
       <Features />
       <Tracks />
-      <Skier />
+      <Suspense fallback={null}>
+        <Skier />
+      </Suspense>
       <SnowPuffs />
       <GameLoop sun={sun} />
     </>
