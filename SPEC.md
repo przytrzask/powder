@@ -1,6 +1,6 @@
 # POWDER — MVP spec
 
-A SkiFree-style downhill game rebuilt in 3D (inspired by https://x.com/almonk/status/2102444573016699297).
+A top-down freestyle ski game in 3D (inspired by https://x.com/almonk/status/2102444573016699297).
 
 ## Tech
 - Vite + React + TypeScript
