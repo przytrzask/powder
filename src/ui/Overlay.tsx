@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
+
 import { startRun } from '../game/runtime'
-import { CAMERA_MODES, CHARACTERS, type Option, useGame } from '../game/store'
+import { CAMERA_MODES, CHARACTERS, type Option, sendPhase, useGame } from '../game/store'
+
 import './overlay.css'
 
 const fmtTime = (t: number) => {
@@ -8,6 +10,27 @@ const fmtTime = (t: number) => {
   const s = Math.floor(t % 60)
   const cs = Math.floor((t * 100) % 100)
   return `${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}`
+}
+
+function Row({ label, value, unit }: { label: string; value: number; unit: string }) {
+  return (
+    <div className="row">
+      <span className="label">{label}</span>
+      <span className="value">{value}</span>
+      <span className="unit">{unit}</span>
+    </div>
+  )
+}
+
+function CameraHint() {
+  const camera = useGame((s) => s.camera)
+  return (
+    <div className="camera-hint">
+      <span className="label">Camera</span>
+      <span>{CAMERA_MODES.find((m) => m.id === camera)?.label}</span>
+      <kbd>C</kbd>
+    </div>
+  )
 }
 
 function Hud() {
@@ -24,24 +47,29 @@ function Hud() {
   )
 }
 
-function CameraHint() {
-  const camera = useGame((s) => s.camera)
-  return (
-    <div className="camera-hint">
-      <span className="label">Camera</span>
-      <span>{CAMERA_MODES.find((m) => m.id === camera)?.label}</span>
-      <kbd>C</kbd>
-    </div>
-  )
-}
-
-function Picker<T extends string>({ label, options, value, onChange }: { label: string; options: Option<T>[]; value: T; onChange: (id: T) => void }) {
+function Picker<T extends string>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string
+  options: readonly Option<T>[]
+  value: T
+  onChange: (id: T) => void
+}) {
   return (
     <div className="picker">
       <span className="label">{label}</span>
       <div className="segmented">
         {options.map((o) => (
-          <button key={o.id} className={o.id === value ? 'active' : ''} onClick={() => onChange(o.id)}>
+          <button
+            key={o.id}
+            className={o.id === value ? 'active' : ''}
+            onClick={() => {
+              onChange(o.id)
+            }}
+          >
             {o.label}
           </button>
         ))}
@@ -62,16 +90,6 @@ function CharacterPicker() {
   return <Picker label="Skier" options={CHARACTERS} value={character} onChange={setCharacter} />
 }
 
-function Row({ label, value, unit }: { label: string; value: number; unit: string }) {
-  return (
-    <div className="row">
-      <span className="label">{label}</span>
-      <span className="value">{value}</span>
-      <span className="unit">{unit}</span>
-    </div>
-  )
-}
-
 function Combo() {
   const combo = useGame((s) => s.combo)
   if (!combo) return null
@@ -87,7 +105,7 @@ function Combo() {
 
 function AirReadout() {
   const air = useGame((s) => s.air)
-  if (!air) return null
+  if (air === null) return null
   return <div className="air">{air}</div>
 }
 
@@ -98,7 +116,7 @@ function Toasts() {
       {toasts.map((t) => (
         <div key={t.id} className={`toast ${t.tone}`}>
           <div>{t.text}</div>
-          {t.sub && <small>{t.sub}</small>}
+          {t.sub !== undefined && <small>{t.sub}</small>}
         </div>
       ))}
     </div>
@@ -145,7 +163,14 @@ function Paused() {
     <div className="screen">
       <div className="card panel">
         <h2>Paused</h2>
-        <button onClick={() => useGame.getState().setPhase('playing')}>Resume</button>
+        <button
+          type="button"
+          onClick={() => {
+            sendPhase({ type: 'RESUME' })
+          }}
+        >
+          Resume
+        </button>
         <button className="secondary" onClick={startRun}>
           Restart
         </button>
@@ -189,7 +214,9 @@ export function Overlay() {
       if (e.code === 'Enter' && (p === 'menu' || p === 'finished')) startRun()
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+    }
   }, [])
 
   return (

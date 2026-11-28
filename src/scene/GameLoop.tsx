@@ -1,18 +1,20 @@
-import { useFrame, useThree } from '@react-three/fiber'
+import { useFrame } from '@react-three/fiber'
 import { useEffect, useRef } from 'react'
 import * as THREE from 'three'
-import { play, silence, updateAmbience } from '../game/audio'
-import { attachInput, readInput } from '../game/input'
-import { runtime } from '../game/runtime'
-import { PHYS } from '../game/config'
-import { assistTarget, stepSim, timeBonus, type SimEvent } from '../game/sim'
-import { judgeLanding } from '../game/tricks'
-import { terrainHeight } from '../game/terrain'
-import { createRig, fogFor, updateRig } from './cameraRig'
-import { spawnPuff } from './SnowPuffs'
-import { useGame } from '../game/store'
 
-const SUBSTEPS = 2
+import { play, silence, updateAmbience } from '../game/audio'
+import { LOOP, PHYS } from '../game/config'
+import { attachInput, readInput } from '../game/input'
+import { advance, poseOf } from '../game/loop'
+import { record } from '../game/replay'
+import { drawPose, runtime } from '../game/runtime'
+import { assistTarget, type Input, stepSim, timeBonus, type SimEvent } from '../game/sim'
+import { canSendPhase, sendPhase, useGame } from '../game/store'
+import { terrainHeight } from '../game/terrain'
+import { judgeLanding } from '../game/tricks'
+import { createRig, fogFor, updateRig } from './cameraRig'
+import { spawnPuff } from './puffs'
+
 const SUN_OFFSET = new THREE.Vector3(40, 30, -26)
 
 let shake = 0
@@ -55,7 +57,7 @@ function handle(events: SimEvent[]) {
         play('crash')
         puffAtSkier(45, 1)
         shake = 0.6
-        game.pushToast({ text: e.reason, sub: e.lost > 0 ? `lost ${e.lost} pts` : undefined, tone: 'crash' })
+        game.pushToast(e.lost > 0 ? { text: e.reason, sub: `lost ${e.lost} pts`, tone: 'crash' } : { text: e.reason, tone: 'crash' })
         break
       case 'gate':
         play('gate', 0.6)
@@ -77,50 +79,57 @@ function airReadout(spin: number, flip: number, grabTime: number, airTime: numbe
   const flipTo = assistTarget(flip, Math.PI * 2, PHYS.flipCommit, PHYS.flipCommit)
   const shiftyPeak = Math.max(peakSpin, spinTo === 0 ? Math.abs(spin) : 0)
   const next = judgeLanding(spinTo, flipTo, grabTime, airTime, shiftyPeak)
-  return next.clean && next.name ? `${next.name}…` : '…'
+  return next.clean && next.name !== null ? `${next.name}…` : '…'
 }
 
 export function GameLoop({ sun }: { sun: React.RefObject<THREE.DirectionalLight | null> }) {
-  const camera = useThree((s) => s.camera) as THREE.PerspectiveCamera
-  const scene = useThree((s) => s.scene)
   const hudTimer = useRef(0)
   const rig = useRef(createRig(useGame.getState().camera))
+  // the last step's input, for the ambience on frames that run no step (displays faster than 120 Hz)
+  const lastInput = useRef<Input | null>(null)
 
   useEffect(() => attachInput(), [])
 
   // Keyboard shortcuts for menus.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      const { phase, setPhase } = useGame.getState()
-      if (e.code === 'Escape' && phase === 'playing') {
-        setPhase('paused')
-        silence()
-      } else if (e.code === 'Escape' && phase === 'paused') setPhase('playing')
-      else if (e.code === 'KeyC' && !e.repeat) useGame.getState().cycleCamera()
+      if (e.code === 'Escape') {
+        if (canSendPhase({ type: 'PAUSE' })) {
+          sendPhase({ type: 'PAUSE' })
+          silence()
+        } else sendPhase({ type: 'RESUME' })
+      } else if (e.code === 'KeyC' && !e.repeat) useGame.getState().cycleCamera()
     }
     window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+    }
   }, [])
 
-  useFrame((_, delta) => {
+  useFrame(({ camera, scene }, delta) => {
     const { phase, camera: mode } = useGame.getState()
-    const sim = runtime.sim
+    const { sim } = runtime
     const s = sim.skier
 
     if (phase === 'playing') {
-      const dt = Math.min(delta, 1 / 20) / SUBSTEPS
-      const input = readInput()
-      if (mode === 'chase') {
-        // looking downhill mirrors the screen: keep ← meaning "towards screen left"
-        const { left, right } = input
-        input.left = right
-        input.right = left
-      }
-      for (let i = 0; i < SUBSTEPS; i++) {
-        handle(stepSim(sim, i === 0 ? input : { ...input, jump: false }, dt))
-        if (sim.finished) break
-      }
-      updateAmbience(s.speed, input.left || input.right ? 1 : 0.2, s.airborne)
+      // Fixed 120 Hz steps whatever the display rate; each step reads (and records) its own input,
+      // so a jump tap reaches only the first step after the keydown.
+      advance(runtime.clock, delta, () => {
+        poseOf(s, runtime.prev)
+        const input = readInput()
+        if (mode === 'chase') {
+          // looking downhill mirrors the screen: keep ← meaning "towards screen left"
+          const { left, right } = input
+          input.left = right
+          input.right = left
+        }
+        record(runtime.recording, input)
+        lastInput.current = input
+        handle(stepSim(sim, input, LOOP.dt))
+        return !sim.finished
+      })
+      const turning = lastInput.current !== null && (lastInput.current.left || lastInput.current.right)
+      updateAmbience(s.speed, turning ? 1 : 0.2, s.airborne)
 
       hudTimer.current += delta
       if (hudTimer.current > 0.05) {
@@ -133,8 +142,11 @@ export function GameLoop({ sun }: { sun: React.RefObject<THREE.DirectionalLight 
         })
       }
     }
+    // the skier and camera are drawn between the last two steps, so motion stays smooth at any frame rate
+    const pose = drawPose()
 
-    const focus = updateRig(rig.current, camera, s, mode, delta, phase === 'menu')
+    if (!(camera instanceof THREE.PerspectiveCamera)) return
+    const focus = updateRig(rig.current, camera, pose, mode, delta, phase === 'menu')
     if (scene.fog instanceof THREE.Fog) [scene.fog.near, scene.fog.far] = fogFor(rig.current.blend)
     if (shake > 0.01) {
       camera.position.x += (Math.random() - 0.5) * shake

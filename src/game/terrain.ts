@@ -2,7 +2,7 @@
 // everything that sits on the snow adds this height so nothing floats or sinks.
 
 const hash = (x: number, z: number) => {
-  const s = Math.sin(x * 127.1 + z * 311.7) * 43758.5453
+  const s = Math.sin(x * 127.1 + z * 311.7) * 43_758.5453
   return s - Math.floor(s)
 }
 

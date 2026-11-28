@@ -1,34 +1,10 @@
 import { useFrame } from '@react-three/fiber'
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
+
 import { runtime } from '../game/runtime'
 import { terrainHeight } from '../game/terrain'
-
-const POOL = 240
-
-type Particle = { x: number; y: number; z: number; vx: number; vy: number; vz: number; age: number; life: number; size: number }
-
-const particles: Particle[] = Array.from({ length: POOL }, () => ({ x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, age: 1, life: 1, size: 0 }))
-let cursor = 0
-
-/** Burst of snow chunks. `power` scales speed and size; 1 = crash, ~0.3 = landing. */
-export function spawnPuff(x: number, y: number, z: number, count: number, power: number, dirX = 0, dirZ = 0) {
-  for (let i = 0; i < count; i++) {
-    const p = particles[cursor]
-    cursor = (cursor + 1) % POOL
-    const a = Math.random() * Math.PI * 2
-    const sp = (1.5 + Math.random() * 4) * power
-    p.x = x + (Math.random() - 0.5) * 0.6
-    p.y = y + 0.2
-    p.z = z + (Math.random() - 0.5) * 0.6
-    p.vx = Math.cos(a) * sp + dirX * power
-    p.vz = Math.sin(a) * sp + dirZ * power
-    p.vy = (2 + Math.random() * 5) * power
-    p.age = 0
-    p.life = 0.6 + Math.random() * 0.7
-    p.size = (0.15 + Math.random() * 0.3) * (0.5 + power * 0.7)
-  }
-}
+import { particles, POOL, spawnPuff } from './puffs'
 
 export function SnowPuffs() {
   const ref = useRef<THREE.InstancedMesh>(null!)
@@ -53,7 +29,7 @@ export function SnowPuffs() {
 
     for (let i = 0; i < POOL; i++) {
       const p = particles[i]
-      if (p.age >= p.life) {
+      if (!p || p.age >= p.life) {
         m.makeScale(0, 0, 0)
       } else {
         p.age += dt

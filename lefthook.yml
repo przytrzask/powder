@@ -1,0 +1,11 @@
+# Pre-commit fence: every commit passes types, lint, format and tests.
+# Agents can't bypass it with --no-verify: scripts/vcs-command-policy.js blocks that
+# (wired for Claude Code in .claude/settings.json and Pi in .pi/extensions/git-interceptor).
+# Installed by `pnpm install` through the `prepare` script.
+pre-commit:
+  parallel: false
+  commands:
+    check:
+      run: pnpm check
+    test:
+      run: pnpm test

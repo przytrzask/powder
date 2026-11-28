@@ -2,6 +2,7 @@ import { useGLTF } from '@react-three/drei'
 import { useFrame } from '@react-three/fiber'
 import { useMemo, useRef } from 'react'
 import * as THREE from 'three'
+
 import { PHYS } from '../game/config'
 import { runtime } from '../game/runtime'
 import type { Skier as SkierState } from '../game/sim'
@@ -24,7 +25,12 @@ const SHOULDER_Y = 1.28 - HIP_Y // shoulder height in the Torso's own (hip-relat
 function useSkierModel() {
   const character = useGame((s) => s.character)
   const { nodes } = useGLTF(modelUrl(character))
-  const geometry = (name: string) => (nodes[name] as THREE.Mesh).geometry
+  // a model missing one of the rig's parts throws here; SkierModelBoundary then draws the fallback skier
+  const geometry = (name: string) => {
+    const node = nodes[name]
+    if (node instanceof THREE.Mesh && node.geometry instanceof THREE.BufferGeometry) return node.geometry
+    throw new TypeError(`Skier model "${character}" has no mesh named ${name}`)
+  }
   const material = useMemo(() => new THREE.MeshStandardMaterial({ vertexColors: true, flatShading: true, roughness: 0.7 }), [])
   return {
     boots: geometry('Boots'),
@@ -38,7 +44,7 @@ function useSkierModel() {
   }
 }
 
-const damp = THREE.MathUtils.damp
+const { damp } = THREE.MathUtils
 const smooth = (t: number) => THREE.MathUtils.smoothstep(t, 0, 1)
 /** Wrap to [-π, π) so rotations always ease the short way round (no unwinding after a 360). */
 const wrap = (a: number) => THREE.MathUtils.euclideanModulo(a + Math.PI, Math.PI * 2) - Math.PI
@@ -96,14 +102,18 @@ function launchGear(gear: THREE.Group, loose: Loose[], from: THREE.Vector3, head
   gear.visible = true
   const fx = Math.sin(heading)
   const fz = Math.cos(heading)
-  loose.forEach((l, i) => {
+  for (const [i, l] of loose.entries()) {
     const side = i % 2 ? 1 : -1
     l.mesh.position.copy(from)
     l.mesh.position.y += 1
     l.mesh.rotation.set(Math.random() * 3, Math.random() * 3, Math.random() * 3)
-    l.vel.set(fx * speed * 0.7 + side * (2 + Math.random() * 3) * fz, 4 + Math.random() * 4, fz * speed * 0.7 - side * (2 + Math.random() * 3) * fx)
+    l.vel.set(
+      fx * speed * 0.7 + side * (2 + Math.random() * 3) * fz,
+      4 + Math.random() * 4,
+      fz * speed * 0.7 - side * (2 + Math.random() * 3) * fx,
+    )
     l.spin.set((Math.random() - 0.5) * 16, (Math.random() - 0.5) * 16, (Math.random() - 0.5) * 16)
-  })
+  }
 }
 
 function updateGear(loose: Loose[], dt: number) {
@@ -149,7 +159,9 @@ export function Skier() {
   useFrame((_, delta) => {
     const dt = Math.min(delta, 1 / 20)
     const s = runtime.sim.skier
-    const ground = terrainHeight(s.x, s.z)
+    // where to draw: blended between the last two sim steps (GameLoop updates it first each frame)
+    const at = runtime.pose
+    const ground = terrainHeight(at.x, at.z)
     const crashed = s.crashT > 0
 
     if (crashed && !wasCrashed.current) {
@@ -172,9 +184,9 @@ export function Skier() {
       const lie = lieAmount(p)
       // impact hop, then face-plant and slide spinning like a starfish
       const hop = p < 0.2 ? Math.sin((p / 0.2) * Math.PI) * 0.7 : 0
-      root.current.position.set(s.x, ground + hop, s.z)
+      root.current.position.set(at.x, ground + hop, at.z)
       crashYaw.current += s.tumbleDir * 10 * (1 - p) ** 2 * dt
-      yaw.current = s.heading + crashYaw.current
+      yaw.current = at.heading + crashYaw.current
       root.current.rotation.y = yaw.current
       pivot.current.rotation.set(lie * Math.PI * 0.47, 0, 0)
       pivot.current.position.y = 0.8 - 0.55 * lie
@@ -187,13 +199,12 @@ export function Skier() {
       return
     }
 
-    root.current.position.set(s.x, ground + s.y, s.z)
+    root.current.position.set(at.x, ground + at.y, at.z)
     pivot.current.position.y = damp(pivot.current.position.y, 0.8, 12, dt)
-    const lean = s.airborne ? 0 : THREE.MathUtils.clamp(s.heading * 0.4, -0.35, 0.35)
-    const targetYaw = s.heading + s.spin + (s.switchStance ? Math.PI : 0)
-    yaw.current = s.airborne ? targetYaw : dampAngle(yaw.current, targetYaw, 18, dt)
+    const lean = s.airborne ? 0 : THREE.MathUtils.clamp(at.heading * 0.4, -0.35, 0.35)
+    yaw.current = s.airborne ? at.yaw : dampAngle(yaw.current, at.yaw, 18, dt)
     root.current.rotation.y = yaw.current
-    pivot.current.rotation.x = s.airborne ? -s.flip : dampAngle(pivot.current.rotation.x, 0, 20, dt)
+    pivot.current.rotation.x = s.airborne ? -at.flip : dampAngle(pivot.current.rotation.x, 0, 20, dt)
     // grabs tweak the whole body sideways so they read from above
     pivot.current.rotation.z = damp(pivot.current.rotation.z, s.grabbing ? 0.45 : -lean, 10, dt)
 
@@ -228,7 +239,8 @@ export function Skier() {
 
   const addLoose = (mesh: THREE.Object3D | null) => {
     if (mesh && !loose.current.some((l) => l.mesh === mesh)) {
-      loose.current.push({ mesh, vel: new THREE.Vector3(), spin: new THREE.Vector3(), restX: mesh.userData.restX ?? 0 })
+      const restX: unknown = mesh.userData.restX
+      loose.current.push({ mesh, vel: new THREE.Vector3(), spin: new THREE.Vector3(), restX: typeof restX === 'number' ? restX : 0 })
     }
   }
 
@@ -255,7 +267,15 @@ export function Skier() {
                   ].map(({ ref, x }, i) => (
                     <group key={x} ref={ref} position={[x, SHOULDER_Y, 0]}>
                       <mesh geometry={model.arm} material={model.material} castShadow />
-                      <mesh ref={(m) => void (m && (poles.current[i] = m))} geometry={model.pole} material={model.material} {...POLE_IN_HAND} castShadow />
+                      <mesh
+                        ref={(m) => {
+                          if (m) poles.current[i] = m
+                        }}
+                        geometry={model.pole}
+                        material={model.material}
+                        {...POLE_IN_HAND}
+                        castShadow
+                      />
                     </group>
                   ))}
                 </group>
@@ -271,7 +291,15 @@ export function Skier() {
           <mesh key={`ski${i}`} ref={addLoose} geometry={model.ski} material={model.material} castShadow scale={SCALE} />
         ))}
         {[0, 1].map((i) => (
-          <mesh key={`pole${i}`} ref={addLoose} geometry={model.pole} material={model.material} userData={{ restX: Math.PI / 2 }} castShadow scale={SCALE} />
+          <mesh
+            key={`pole${i}`}
+            ref={addLoose}
+            geometry={model.pole}
+            material={model.material}
+            userData={{ restX: Math.PI / 2 }}
+            castShadow
+            scale={SCALE}
+          />
         ))}
       </group>
     </>

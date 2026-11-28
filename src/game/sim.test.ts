@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+
 import { PHYS, SCORE } from './config'
 import type { Course } from './course'
 import { createSim, stepSim, type Input, type SimEvent } from './sim'
@@ -96,7 +97,7 @@ describe('stepSim', () => {
     expect(spun).toBe(true)
     expect(events.find((e) => e.type === 'jump')).toEqual({ type: 'jump', big: true })
     const trick = events.find((e) => e.type === 'trick')
-    expect(trick).toMatchObject({ name: expect.stringMatching(/^(360|540)$/) })
+    expect(['360', '540']).toContain(trick?.name)
     expect(events.some((e) => e.type === 'bank')).toBe(true)
     expect(sim.style).toBeGreaterThan(0)
   })
@@ -185,7 +186,10 @@ describe('stepSim', () => {
       const sim = createSim(emptyCourse({ ramps: [{ x: 0, z: 30, w: 4.5, l: 5, h }] }))
       sim.skier.speed = 12
       let air = 0
-      run(sim, 5, () => ((air = Math.max(air, sim.skier.airborne ? sim.skier.airTime : 0)), {}))
+      run(sim, 5, () => {
+        air = Math.max(air, sim.skier.airborne ? sim.skier.airTime : 0)
+        return {}
+      })
       return air
     }
     expect(airFor(2.2)).toBeGreaterThan(airFor(0.8) + 0.4)

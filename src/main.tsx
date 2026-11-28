@@ -1,9 +1,13 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+
 import './index.css'
 import App from './App.tsx'
 
-createRoot(document.getElementById('root')!).render(
+const root = document.querySelector('#root')
+if (!root) throw new Error('index.html has no #root element to mount POWDER into')
+
+createRoot(root).render(
   <StrictMode>
     <App />
   </StrictMode>,

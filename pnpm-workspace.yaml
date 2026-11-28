@@ -1,0 +1,7 @@
+# Single-package repo: this file only carries pnpm settings.
+
+allowBuilds:
+  # lefthook's postinstall only runs `lefthook install`; the `prepare` script does that instead.
+  lefthook: false
+  # Cloudflare's local Workers runtime (pulled in by @alchemy.run/cloudflare); the postinstall checks its platform binary.
+  workerd: true
