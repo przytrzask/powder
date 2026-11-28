@@ -1,6 +1,6 @@
 # POWDER
 
-A SkiFree-style downhill game in 3D — React Three Fiber, procedural low-poly art, synthesized sound.
+A top-down freestyle ski game in 3D — React Three Fiber, procedural low-poly art, synthesized sound.
 
 ```sh
 pnpm install
