@@ -1,5 +1,5 @@
 import { COURSE, PHYS, SCORE } from './config'
-import { bucketObstacles, type Course } from './course'
+import { bucketObstacles, type Course, type Obstacle } from './course'
 import { judgeLanding } from './tricks'
 
 export type Input = {
@@ -77,8 +77,27 @@ export function createSim(course: Course): Sim {
     course,
     nearby: bucketObstacles(course.obstacles),
     skier: {
-      x: 0, z: 0, y: 0, vy: 0, heading: 0, speed: 4, airborne: false, airTime: 0,
-      spin: 0, peakSpin: 0, flip: 0, grabTime: 0, grabbing: false, switchStance: false, tuck: false, crashT: 0, recoverT: 0, tumbleDir: 1, onRamp: false, pop: 0, rampLaunch: false,
+      x: 0,
+      z: 0,
+      y: 0,
+      vy: 0,
+      heading: 0,
+      speed: 4,
+      airborne: false,
+      airTime: 0,
+      spin: 0,
+      peakSpin: 0,
+      flip: 0,
+      grabTime: 0,
+      grabbing: false,
+      switchStance: false,
+      tuck: false,
+      crashT: 0,
+      recoverT: 0,
+      tumbleDir: 1,
+      onRamp: false,
+      pop: 0,
+      rampLaunch: false,
     },
     time: 0,
     style: 0,
@@ -127,9 +146,7 @@ function settle(angle: number, target: number, dt: number) {
 }
 
 function rampUnder(sim: Sim, s: Skier) {
-  return sim.course.ramps.find(
-    (r) => Math.abs(s.x - r.x) < r.w / 2 && s.z > r.z - r.l / 2 - 0.5 && s.z < r.z + r.l / 2 + 0.5,
-  )
+  return sim.course.ramps.find((r) => Math.abs(s.x - r.x) < r.w / 2 && s.z > r.z - r.l / 2 - 0.5 && s.z < r.z + r.l / 2 + 0.5)
 }
 
 function launch(s: Skier, vy: number) {
@@ -147,12 +164,14 @@ function launch(s: Skier, vy: number) {
  * on release (h = the kicker's full height, so letting go early never gives less air than riding off).
  */
 function launchOffRamp(s: Skier, events: SimEvent[], h = s.y) {
-  const pop = s.pop
+  const { pop } = s
   launch(s, PHYS.rampVy * Math.sqrt(h / 1.3) + s.speed * PHYS.rampSpeedFactor + PHYS.rampPop * pop)
   s.rampLaunch = pop === 0
   events.push({ type: 'jump', big: true })
   if (pop > 0) events.push({ type: 'pop' })
 }
+
+const CRASH_REASON: Record<Obstacle['kind'], string> = { tree: 'Hugged a tree', rock: 'Hit a rock', pole: 'Hit the lift' }
 
 const NO_INPUT: Input = { left: false, right: false, up: false, down: false, jump: false, jumpHeld: false, grab: false }
 
@@ -202,7 +221,7 @@ export function stepSim(sim: Sim, rawInput: Input, dt: number): SimEvent[] {
       if (ramp) {
         launchOffRamp(s, events, ramp.h)
       } else {
-        const pop = s.pop
+        const { pop } = s
         launch(s, PHYS.ollieVy + s.speed * 0.05 + PHYS.olliePop * pop)
         events.push({ type: 'jump', big: false })
       }
@@ -257,7 +276,7 @@ export function stepSim(sim: Sim, rawInput: Input, dt: number): SimEvent[] {
       } else {
         events.push({ type: 'land' })
         if (result.switchStance) s.switchStance = !s.switchStance
-        if (result.name) {
+        if (result.name !== null) {
           const c = sim.combo
           c.base += result.points
           c.count += 1
@@ -280,7 +299,7 @@ export function stepSim(sim: Sim, rawInput: Input, dt: number): SimEvent[] {
       if (dx * dx + dz * dz < min * min && s.y < o.h) {
         // bounce off to the side so the slide (and the fall line) is clear of the obstacle
         const side = Math.sign(dx) || 1
-        crash(sim, o.kind === 'tree' ? 'Hugged a tree' : o.kind === 'rock' ? 'Hit a rock' : 'Hit the lift', events, side)
+        crash(sim, CRASH_REASON[o.kind], events, side)
         s.x = o.x + side * (min + 0.6)
         s.heading = side * 0.5
         break

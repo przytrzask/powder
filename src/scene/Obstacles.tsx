@@ -1,6 +1,7 @@
 import { useLayoutEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+
 import type { Obstacle } from '../game/course'
 import { mulberry32 } from '../game/course'
 import { course } from '../game/runtime'
@@ -9,7 +10,7 @@ import { terrainHeight } from '../game/terrain'
 function colored(g: THREE.BufferGeometry, color: string) {
   const c = new THREE.Color(color)
   const g2 = g.index ? g.toNonIndexed() : g
-  const colors = new Float32Array(g2.attributes.position.count * 3)
+  const colors = new Float32Array(g2.getAttribute('position').count * 3)
   for (let i = 0; i < colors.length; i += 3) colors.set([c.r, c.g, c.b], i)
   g2.setAttribute('color', new THREE.BufferAttribute(colors, 3))
   g2.deleteAttribute('uv')
@@ -25,7 +26,7 @@ function treeGeometry() {
     { r: 0.45, h: 1.1, y: 3.7, c: '#387b5a' },
   ]
   for (const t of tiers) parts.push(colored(new THREE.ConeGeometry(t.r, t.h, 8).translate(0, t.y + t.h / 2, 0), t.c))
-  const g = mergeGeometries(parts)!
+  const g = mergeGeometries(parts)
   g.computeVertexNormals()
   return g
 }
@@ -33,7 +34,7 @@ function treeGeometry() {
 function rockGeometry() {
   const g = new THREE.IcosahedronGeometry(1, 1)
   const rand = mulberry32(99)
-  const pos = g.attributes.position
+  const pos = g.getAttribute('position')
   // Jitter shared vertices consistently so the mesh stays closed.
   const offsets = new Map<string, number>()
   for (let i = 0; i < pos.count; i++) {
@@ -51,11 +52,11 @@ function useInstances(ref: React.RefObject<THREE.InstancedMesh | null>, items: O
     const mesh = ref.current!
     const m = new THREE.Matrix4()
     const q = new THREE.Quaternion()
-    items.forEach((o, i) => {
+    for (const [i, o] of items.entries()) {
       q.setFromAxisAngle(new THREE.Vector3(0, 1, 0), o.rot)
       m.compose(new THREE.Vector3(o.x, terrainHeight(o.x, o.z), o.z), q, scaleFor(o))
       mesh.setMatrixAt(i, m)
-    })
+    }
     mesh.instanceMatrix.needsUpdate = true
     mesh.computeBoundingSphere()
   }, [ref, items, scaleFor])
@@ -67,8 +68,8 @@ const rockScale = (o: Obstacle) => new THREE.Vector3(o.scale * 1.2, o.scale, o.s
 export function Obstacles() {
   const trees = useMemo(() => course.obstacles.filter((o) => o.kind === 'tree'), [])
   const rocks = useMemo(() => course.obstacles.filter((o) => o.kind === 'rock'), [])
-  const treeGeo = useMemo(treeGeometry, [])
-  const rockGeo = useMemo(rockGeometry, [])
+  const treeGeo = useMemo(() => treeGeometry(), [])
+  const rockGeo = useMemo(() => rockGeometry(), [])
   const treeRef = useRef<THREE.InstancedMesh>(null)
   const rockRef = useRef<THREE.InstancedMesh>(null)
   useInstances(treeRef, trees, treeScale)

@@ -3,11 +3,11 @@ import { COURSE } from './config'
 export function mulberry32(seed: number) {
   let a = seed >>> 0
   return () => {
-    a = (a + 0x6d2b79f5) >>> 0
+    a = (a + 0x6d_2b_79_f5) >>> 0
     let t = a
     t = Math.imul(t ^ (t >>> 15), t | 1)
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296
   }
 }
 
@@ -23,8 +23,9 @@ export type Course = {
 }
 
 const LIFT_X = -22
+type RampSize = Pick<Ramp, 'w' | 'l' | 'h'>
 // small / medium / big kickers: height drives launch speed and so air time
-const RAMP_SIZES = [
+const RAMP_SIZES: readonly [RampSize, ...RampSize[]] = [
   { w: 4, l: 4, h: 0.8 },
   { w: 4.5, l: 5, h: 1.3 },
   { w: 5.5, l: 7, h: 2.2 },
@@ -50,7 +51,7 @@ export function generateCourse(seed = COURSE.seed): Course {
   for (let z = 60; z < length - 60; z += range(38, 55)) {
     const x = range(-corridor + 10, corridor - 10)
     if (rand() < 0.5) {
-      const size = RAMP_SIZES[Math.floor(rand() * RAMP_SIZES.length)]
+      const size = RAMP_SIZES[Math.floor(rand() * RAMP_SIZES.length)] ?? RAMP_SIZES[0]
       ramps.push({ x, z, ...size })
       z += size.h * 8 // bigger kickers need a longer landing
     } else gates.push({ x, z, halfWidth: 3.2, color: rand() < 0.5 ? '#d7263d' : '#1b998b' })
@@ -113,8 +114,13 @@ export function bucketObstacles(obstacles: Obstacle[]) {
   for (const o of obstacles) {
     if (o.kind === 'tree' && Math.abs(o.x) > COURSE.corridor + 4) continue // edge forest handled by clamp
     const key = Math.floor(o.z / 10)
-    if (!buckets.has(key)) buckets.set(key, [])
-    buckets.get(key)!.push(o)
+    const bucket = buckets.get(key)
+    if (bucket) bucket.push(o)
+    else buckets.set(key, [o])
   }
-  return (z: number) => [...(buckets.get(Math.floor(z / 10) - 1) ?? []), ...(buckets.get(Math.floor(z / 10)) ?? []), ...(buckets.get(Math.floor(z / 10) + 1) ?? [])]
+  return (z: number) => [
+    ...(buckets.get(Math.floor(z / 10) - 1) ?? []),
+    ...(buckets.get(Math.floor(z / 10)) ?? []),
+    ...(buckets.get(Math.floor(z / 10) + 1) ?? []),
+  ]
 }

@@ -1,6 +1,7 @@
 import * as THREE from 'three'
+
 import { CAMERA } from '../game/config'
-import type { Skier } from '../game/sim'
+import type { Pose } from '../game/loop'
 import type { CameraMode } from '../game/store'
 import { terrainHeight } from '../game/terrain'
 
@@ -12,7 +13,12 @@ export type CameraRig = {
   blend: number
 }
 
-export const createRig = (mode: CameraMode): CameraRig => ({ classicTarget: new THREE.Vector3(), yaw: 0, ground: 0, blend: mode === 'chase' ? 1 : 0 })
+export const createRig = (mode: CameraMode): CameraRig => ({
+  classicTarget: new THREE.Vector3(),
+  yaw: 0,
+  ground: 0,
+  blend: mode === 'chase' ? 1 : 0,
+})
 
 const CLASSIC_OFFSET = new THREE.Vector3(...CAMERA.classic.offset)
 const pos = new THREE.Vector3()
@@ -25,8 +31,8 @@ const forward = new THREE.Vector3()
 const smoothstep = (t: number) => t * t * (3 - 2 * t)
 const approach = (from: number, to: number, rate: number, dt: number) => from + (to - from) * (1 - Math.exp(-rate * dt))
 
-/** Places the camera for this frame (`snap` skips the follow smoothing); returns the point the sun's shadow box should centre on. */
-export function updateRig(rig: CameraRig, camera: THREE.PerspectiveCamera, s: Skier, mode: CameraMode, dt: number, snap: boolean) {
+/** Places the camera for this frame on the drawn (interpolated) skier pose (`snap` skips the follow smoothing); returns the point the sun's shadow box should centre on. */
+export function updateRig(rig: CameraRig, camera: THREE.PerspectiveCamera, s: Pose, mode: CameraMode, dt: number, snap: boolean) {
   const target = mode === 'chase' ? 1 : 0
   rig.blend = THREE.MathUtils.clamp(rig.blend + Math.sign(target - rig.blend) * CAMERA.blendRate * dt, 0, 1)
   const b = smoothstep(rig.blend)
@@ -64,7 +70,10 @@ export function updateRig(rig: CameraRig, camera: THREE.PerspectiveCamera, s: Sk
   return focus
 }
 
-export function fogFor(blend: number) {
+export function fogFor(blend: number): [near: number, far: number] {
   const b = smoothstep(blend)
-  return [THREE.MathUtils.lerp(CAMERA.classic.fog[0], CAMERA.chase.fog[0], b), THREE.MathUtils.lerp(CAMERA.classic.fog[1], CAMERA.chase.fog[1], b)]
+  return [
+    THREE.MathUtils.lerp(CAMERA.classic.fog[0], CAMERA.chase.fog[0], b),
+    THREE.MathUtils.lerp(CAMERA.classic.fog[1], CAMERA.chase.fog[1], b),
+  ]
 }

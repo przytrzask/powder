@@ -1,5 +1,6 @@
 import { useMemo } from 'react'
 import * as THREE from 'three'
+
 import { COURSE } from '../game/config'
 import { RAMP_RUN_IN, type Gate, type Ramp } from '../game/course'
 import { course } from '../game/runtime'
@@ -35,7 +36,11 @@ function RampMesh({ ramp }: { ramp: Ramp }) {
 // Run-in markers: flag pairs that narrow toward the kicker, pennants streaming downhill.
 // Colour tells the size, like piste difficulty: green small, blue medium, black big.
 const RUN_IN_PAIRS = 4
-const rampColor = (h: number) => (h < 1 ? '#3fae4f' : h < 2 ? '#2f6fdb' : '#23262d')
+function rampColor(h: number) {
+  if (h < 1) return '#3fae4f'
+  if (h < 2) return '#2f6fdb'
+  return '#23262d'
+}
 
 const pennant = (() => {
   const g = new THREE.ShapeGeometry(new THREE.Shape([new THREE.Vector2(0, 0), new THREE.Vector2(0, 0.8), new THREE.Vector2(1.5, 0.4)]))
@@ -102,8 +107,7 @@ function Chairlift() {
   const chairs = useMemo(() => {
     const list: { x: number; z: number }[] = []
     for (let z = -60; z < course.length + 100; z += 16) {
-      list.push({ x: course.liftX - 1.8, z })
-      list.push({ x: course.liftX + 1.8, z: z + 8 })
+      list.push({ x: course.liftX - 1.8, z }, { x: course.liftX + 1.8, z: z + 8 })
     }
     return list
   }, [])
@@ -156,10 +160,11 @@ function FinishLine() {
     canvas.width = 128
     canvas.height = 4
     const ctx = canvas.getContext('2d')!
-    for (let x = 0; x < 128; x++) for (let y = 0; y < 4; y++) {
-      ctx.fillStyle = (x + y) % 2 ? '#1d1f24' : '#ffffff'
-      ctx.fillRect(x, y, 1, 1)
-    }
+    for (let x = 0; x < 128; x++)
+      for (let y = 0; y < 4; y++) {
+        ctx.fillStyle = (x + y) % 2 ? '#1d1f24' : '#ffffff'
+        ctx.fillRect(x, y, 1, 1)
+      }
     const t = new THREE.CanvasTexture(canvas)
     t.magFilter = THREE.NearestFilter
     return t

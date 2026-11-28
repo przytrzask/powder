@@ -1,8 +1,6 @@
 import { PHYS, SCORE } from './config'
 
-export type Landing =
-  | { clean: true; name: string | null; points: number; switchStance: boolean }
-  | { clean: false; reason: string }
+export type Landing = { clean: true; name: string | null; points: number; switchStance: boolean } | { clean: false; reason: string }
 
 const residual = (angle: number, period: number) => {
   const r = ((Math.abs(angle) % period) + period) % period

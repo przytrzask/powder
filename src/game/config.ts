@@ -7,6 +7,15 @@ export const COURSE = {
   corridor: 34,
 }
 
+// The sim runs at a fixed rate whatever the display does, so the same input always gives the same run
+// (and a recorded run replays exactly). Frames draw the skier blended between the last two steps.
+export const LOOP = {
+  dt: 1 / 120, // s per sim step, the rate the sim tests use
+  // longest frame fed to the sim; a longer one (tab switch, GC pause) plays in slow motion instead of catching up
+  maxFrame: 1 / 20,
+  maxSteps: 8, // per frame, so a slow device never spirals into ever more catch-up steps
+}
+
 export const PHYS = {
   gravityAlongSlope: 4.4, // slope acceleration when pointing straight downhill
   gravity: 17, // vertical, while airborne (floaty on purpose)
